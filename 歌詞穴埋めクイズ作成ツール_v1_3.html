@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>みんはや 歌詞穴埋めクイズ作成ツール v1.3</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f5f6f8;color:#202124;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",Meiryo,sans-serif}
+main{max-width:900px;margin:auto;padding:20px 14px 50px}
+h1{font-size:24px;margin:0 0 6px}h2{font-size:18px;margin:0 0 12px}
+.card{background:#fff;border:1px solid #d8dde5;border-radius:14px;padding:18px;margin:14px 0}
+textarea,input,select{width:100%;font:inherit;border:1px solid #cbd1da;border-radius:9px;padding:11px;background:#fff}
+textarea{min-height:250px;resize:vertical}
+label{display:block;font-weight:700;margin:12px 0 6px}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+button{font:inherit;font-weight:700;border:0;border-radius:9px;padding:10px 15px;margin:10px 7px 0 0;background:#2563eb;color:#fff}
+button.secondary{background:#eef0f3;color:#222}
+button.choice{display:block;width:100%;text-align:left;background:#fff;color:#222;border:1px solid #cbd1da}
+button:disabled{opacity:.45}
+.note{font-size:13px;color:#687080}
+.msg{margin-top:10px;font-size:14px}.ok{color:#087a35}.err{color:#c00}
+.hidden{display:none!important}
+.block{white-space:pre-wrap;border:1px solid #d8dde5;border-radius:10px;padding:14px;background:#fafafa}
+.preview{white-space:pre-wrap;border:1px solid #cbdcff;border-radius:10px;padding:14px;background:#eef4ff}
+.answer{background:#f7f7f7;border-color:#ddd}
+@media(max-width:700px){.grid{grid-template-columns:1fr}h1{font-size:21px}}
+</style>
+</head>
+<body>
+<main>
+<h1>みんはや 歌詞穴埋めクイズ作成ツール</h1>
+<p class="note">1行目＝曲名、2行目以降＝歌詞。曲名と歌詞は1つの入力欄にまとめて入力します。</p>
+
+<section class="card">
+<h2>① 曲名＋歌詞を入力</h2>
+<textarea id="source" placeholder="1行目に曲名、2行目以降に歌詞を貼り付けてください"></textarea>
+
+<div class="grid">
+<div>
+<label for="mode">抽出方法</label>
+<select id="mode">
+<option value="lines">固定行数</option>
+<option value="blocks">空行ごと（1ブロック＝1問）</option>
+</select>
+</div>
+<div id="lineWrap">
+<label for="lineCount">固定行数</label>
+<input id="lineCount" type="number" min="1" max="20" value="1">
+</div>
+<div>
+<label for="minChars">最低文字数</label>
+<input id="minChars" type="number" min="1" max="20" value="1">
+</div>
+</div>
+
+<p class="note">※ 1行目は曲名として扱い、抽出対象から除外します。固定行数では空行をまたぎません。</p>
+<button id="extractBtn">問題ブロックを抽出</button>
+<button id="clearBtn" class="secondary">クリア</button>
+<div id="inputMsg" class="msg"></div>
+</section>
+
+<section id="extractResult" class="card hidden">
+<h2>抽出結果</h2>
+<div id="countMsg" class="msg ok"></div>
+<div id="list"></div>
+</section>
+
+<section id="work" class="card hidden">
+<div id="progress" class="note"></div>
+<h2>② 穴抜きする歌詞を選ぶ</h2>
+<div id="currentBlock" class="block"></div>
+
+<label for="phrase">伏せたい歌詞</label>
+<input id="phrase" placeholder="例：小さなランプ">
+<p class="note">この問題ブロックの中から、伏せたい文字列をそのまま入力してください。</p>
+<button id="findBtn">該当箇所を確認</button>
+<button id="resetBtn" class="secondary">リセット</button>
+<div id="matchList"></div>
+
+<div id="result" class="hidden">
+<h2 style="margin-top:22px">③ 完成した問題</h2>
+<div id="problem" class="preview"></div>
+<button id="copyProblem">問題をコピー</button>
+
+<h2 style="margin-top:22px">答え</h2>
+<div id="answer" class="preview answer"></div>
+<button id="copyAnswer">答えをコピー</button>
+<div id="copyMsg" class="msg"></div>
+
+<div>
+<button id="prevBtn" class="secondary">前の問題</button>
+<button id="nextBtn">次の問題</button>
+</div>
+</div>
+</section>
+</main>
+
+<script>
+(function(){
+"use strict";
+
+var source=document.getElementById("source");
+var mode=document.getElementById("mode");
+var lineCount=document.getElementById("lineCount");
+var minChars=document.getElementById("minChars");
+var lineWrap=document.getElementById("lineWrap");
+var extractBtn=document.getElementById("extractBtn");
+var clearBtn=document.getElementById("clearBtn");
+var inputMsg=document.getElementById("inputMsg");
+var extractResult=document.getElementById("extractResult");
+var countMsg=document.getElementById("countMsg");
+var list=document.getElementById("list");
+var work=document.getElementById("work");
+var progress=document.getElementById("progress");
+var currentBlock=document.getElementById("currentBlock");
+var phrase=document.getElementById("phrase");
+var findBtn=document.getElementById("findBtn");
+var resetBtn=document.getElementById("resetBtn");
+var matchList=document.getElementById("matchList");
+var result=document.getElementById("result");
+var problem=document.getElementById("problem");
+var answer=document.getElementById("answer");
+var copyProblem=document.getElementById("copyProblem");
+var copyAnswer=document.getElementById("copyAnswer");
+var copyMsg=document.getElementById("copyMsg");
+var prevBtn=document.getElementById("prevBtn");
+var nextBtn=document.getElementById("nextBtn");
+
+var blocks=[];
+var current=0;
+
+function normalize(s){return s.replace(/\r\n?/g,"\n");}
+function chars(s){return Array.from(s).length;}
+
+function extractBlocks(lyrics, how, n, min){
+  var lines=normalize(lyrics).split("\n");
+  var out=[];
+
+  function add(block){
+    var clean=block.replace(/\n/g,"");
+    if(chars(clean)>=min) out.push(block);
+  }
+
+  if(how==="blocks"){
+    var buf=[];
+    for(var i=0;i<lines.length;i++){
+      if(lines[i].trim()===""){
+        if(buf.length){add(buf.join("\n"));buf=[];}
+      }else{
+        buf.push(lines[i]);
+      }
+    }
+    if(buf.length) add(buf.join("\n"));
+    return out;
+  }
+
+  var paragraph=[];
+  function flush(){
+    for(var j=0;j<paragraph.length;j+=n){
+      add(paragraph.slice(j,j+n).join("\n"));
+    }
+  }
+
+  for(var k=0;k<lines.length;k++){
+    if(lines[k].trim()===""){
+      if(paragraph.length) flush();
+      paragraph=[];
+    }else{
+      paragraph.push(lines[k]);
+    }
+  }
+  if(paragraph.length) flush();
+  return out;
+}
+
+function showCurrent(){
+  progress.textContent="問題ブロック "+(current+1)+" / "+blocks.length;
+  currentBlock.textContent=blocks[current];
+  phrase.value="";
+  matchList.innerHTML="";
+  result.classList.add("hidden");
+  copyMsg.textContent="";
+  prevBtn.disabled=(current===0);
+  nextBtn.textContent=(current===blocks.length-1)?"最初の問題へ":"次の問題";
+}
+
+function findAll(text,target){
+  var result=[];
+  var pos=0;
+  while(true){
+    var found=text.indexOf(target,pos);
+    if(found===-1) break;
+    result.push(found);
+    pos=found+Math.max(1,target.length);
+  }
+  return result;
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g,function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+  });
+}
+
+function makeQuestion(start,target){
+  var block=blocks[current];
+  var circles="〇".repeat(chars(target));
+  problem.textContent=block.slice(0,start)+circles+block.slice(start+target.length);
+
+  var firstLine=normalize(source.value).split("\n")[0].trim();
+  answer.textContent=target+"（"+firstLine+"）";
+
+  result.classList.remove("hidden");
+  copyMsg.textContent=chars(target)+"文字を伏せました。";
+  copyMsg.className="msg ok";
+}
+
+mode.addEventListener("change",function(){
+  lineWrap.classList.toggle("hidden",mode.value==="blocks");
+});
+
+extractBtn.addEventListener("click",function(){
+  var raw=normalize(source.value);
+  var lines=raw.split("\n");
+  var title=(lines[0]||"").trim();
+  var lyrics=lines.slice(1).join("\n");
+
+  inputMsg.className="msg";
+
+  if(!title){
+    inputMsg.textContent="1行目に曲名を書いてください。";
+    inputMsg.className="msg err";
+    return;
+  }
+  if(!lyrics.trim()){
+    inputMsg.textContent="2行目以降に歌詞を書いてください。";
+    inputMsg.className="msg err";
+    return;
+  }
+
+  var n=Math.max(1,Math.min(20,parseInt(lineCount.value,10)||1));
+  var min=Math.max(1,Math.min(20,parseInt(minChars.value,10)||1));
+
+  blocks=extractBlocks(lyrics,mode.value,n,min);
+
+  if(!blocks.length){
+    inputMsg.textContent="条件に合う問題ブロックがありません。";
+    inputMsg.className="msg err";
+    extractResult.classList.add("hidden");
+    work.classList.add("hidden");
+    return;
+  }
+
+  current=0;
+  inputMsg.textContent="抽出しました。";
+  inputMsg.className="msg ok";
+
+  countMsg.textContent=blocks.length+"問分の問題ブロックを抽出しました。";
+  list.innerHTML="";
+
+  blocks.forEach(function(b,i){
+    var div=document.createElement("div");
+    div.className="block";
+    div.style.marginTop="8px";
+    div.textContent=(i+1)+". "+b;
+    list.appendChild(div);
+  });
+
+  extractResult.classList.remove("hidden");
+  work.classList.remove("hidden");
+  showCurrent();
+  work.scrollIntoView({behavior:"smooth",block:"start"});
+});
+
+findBtn.addEventListener("click",function(){
+  var target=phrase.value;
+  matchList.innerHTML="";
+
+  if(!target){
+    matchList.innerHTML='<div class="msg err">伏せたい歌詞を入力してください。</div>';
+    return;
+  }
+
+  var positions=findAll(blocks[current],target);
+
+  if(!positions.length){
+    matchList.innerHTML='<div class="msg err">この問題ブロック内に、その文字列が見つかりませんでした。</div>';
+    return;
+  }
+
+  positions.forEach(function(pos,i){
+    var b=blocks[current];
+    var before=escapeHtml(b.slice(Math.max(0,pos-18),pos));
+    var hit=escapeHtml(target);
+    var after=escapeHtml(b.slice(pos+target.length,Math.min(b.length,pos+target.length+18)));
+
+    var btn=document.createElement("button");
+    btn.className="choice";
+    btn.innerHTML="候補 "+(i+1)+"：..."+before+"<strong>"+hit+"</strong>"+after+"...";
+    btn.addEventListener("click",function(){makeQuestion(pos,target);});
+    matchList.appendChild(btn);
+  });
+
+  if(positions.length===1) makeQuestion(positions[0],target);
+});
+
+resetBtn.addEventListener("click",function(){
+  phrase.value="";
+  matchList.innerHTML="";
+  result.classList.add("hidden");
+});
+
+prevBtn.addEventListener("click",function(){
+  if(current>0){
+    current--;
+    showCurrent();
+  }
+});
+
+nextBtn.addEventListener("click",function(){
+  if(current<blocks.length-1){
+    current++;
+  }else{
+    current=0;
+  }
+  showCurrent();
+});
+
+function copyText(text){
+  if(navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(text).then(function(){
+      copyMsg.textContent="コピーしました。";
+      copyMsg.className="msg ok";
+    }).catch(function(){fallbackCopy(text);});
+  }else{
+    fallbackCopy(text);
+  }
+}
+function fallbackCopy(text){
+  var ta=document.createElement("textarea");
+  ta.value=text;
+  ta.style.position="fixed";
+  ta.style.left="-9999px";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try{document.execCommand("copy");copyMsg.textContent="コピーしました。";copyMsg.className="msg ok";}
+  catch(e){copyMsg.textContent="コピーできませんでした。";copyMsg.className="msg err";}
+  ta.remove();
+}
+
+copyProblem.addEventListener("click",function(){copyText(problem.textContent);});
+copyAnswer.addEventListener("click",function(){copyText(answer.textContent);});
+
+clearBtn.addEventListener("click",function(){
+  source.value="";
+  inputMsg.textContent="";
+  extractResult.classList.add("hidden");
+  work.classList.add("hidden");
+  blocks=[];
+  current=0;
+});
+})();
+</script>
+</body>
+</html>
