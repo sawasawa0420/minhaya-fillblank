@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>みんはや 歌詞穴埋めクイズ作問ツール v1.5</title>
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;background:#f5f7fa;color:#202124;
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",Meiryo,sans-serif;
+}
+main{max-width:1100px;margin:auto;padding:24px 16px 60px}
+h1{font-size:24px;margin:0 0 6px}
+h2{font-size:19px;margin:0 0 14px}
+h3{font-size:16px;margin:18px 0 8px}
+.note{color:#687080;font-size:13px;line-height:1.6}
+.card{
+  background:#fff;border:1px solid #d8dde5;border-radius:14px;
+  padding:18px;margin:14px 0;
+}
+textarea,input,select{
+  width:100%;font:inherit;border:1px solid #cbd1da;border-radius:9px;
+  padding:11px 12px;background:#fff;color:#202124;
+}
+textarea{min-height:250px;resize:vertical;line-height:1.55}
+input:focus,textarea:focus,select:focus{outline:3px solid #b9dcff;border-color:#2f6fed}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+button{
+  font:inherit;font-weight:700;border:0;border-radius:9px;padding:10px 15px;
+  margin:8px 8px 0 0;cursor:pointer;background:#2f6fed;color:#fff;
+}
+button.secondary{background:#eef0f3;color:#222}
+button.danger{background:#fff0f0;color:#b00020;border:1px solid #ffd0d0}
+button:disabled{opacity:.45;cursor:not-allowed}
+.msg{margin-top:10px;font-size:14px}
+.ok{color:#087a35}.err{color:#c00}.muted{color:#687080}
+.hidden{display:none!important}
+.block{
+  white-space:pre-wrap;border:1px solid #d8dde5;border-radius:10px;
+  padding:14px;background:#fafbfc;line-height:1.55;
+}
+.preview{
+  white-space:pre-wrap;border:1px solid #bfd1ff;border-radius:10px;
+  padding:14px;background:#eef4ff;line-height:1.55;
+}
+.answer{
+  white-space:pre-wrap;border:1px solid #ddd;border-radius:10px;
+  padding:14px;background:#f7f7f7;line-height:1.55;
+}
+.block-list{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;
+  margin-top:12px;
+}
+.block-btn{
+  width:100%;text-align:left;margin:0;padding:11px 10px;
+  background:#fff;color:#202124;border:1px solid #cbd1da;
+}
+.block-btn.active{border:2px solid #2f6fed;background:#eef4ff;padding:10px 9px}
+.block-btn.done{border-color:#69b578}
+.block-btn .small{display:block;font-size:12px;color:#687080;margin-top:3px;font-weight:400}
+.match-list{display:grid;gap:8px;margin-top:10px}
+.match-btn{
+  display:block;width:100%;text-align:left;margin:0;background:#fff;color:#202124;
+  border:1px solid #cbd1da;font-weight:500;line-height:1.45;
+}
+.match-btn.selected{border:2px solid #2f6fed;background:#eef4ff}
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.status{
+  display:inline-block;padding:5px 9px;border-radius:999px;background:#eef0f3;
+  color:#555;font-size:12px;font-weight:700;
+}
+.status.done{background:#e8f7ec;color:#087a35}
+.count{font-size:14px;color:#687080;margin:8px 0}
+.sticky-nav{
+  position:sticky;bottom:10px;z-index:5;
+  background:rgba(255,255,255,.96);border:1px solid #d8dde5;
+  border-radius:12px;padding:8px 10px;box-shadow:0 4px 18px rgba(0,0,0,.08);
+}
+@media(max-width:700px){
+  main{padding:18px 12px 50px}
+  h1{font-size:21px}
+  .grid2{grid-template-columns:1fr}
+  .block-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>みんはや 歌詞穴埋めクイズ作問ツール v1.5</h1>
+  <p class="note">歌詞から問題ブロックを抽出し、好きなブロックを自由に選んで穴抜き問題を作成できます。完全に同じ歌詞ブロックは重複して抽出しません。</p>
+
+  <section class="card">
+    <h2>① 曲名＋歌詞を入力</h2>
+    <textarea id="source" placeholder="1行目に曲名、2行目以降に歌詞を貼り付けてください"></textarea>
+
+    <div class="grid2" style="margin-top:12px">
+      <div>
+        <label><b>抽出方法</b></label>
+        <select id="mode">
+          <option value="blank">空行ごと（1ブロック＝1問）</option>
+          <option value="fixed">固定行数</option>
+        </select>
+      </div>
+      <div id="lineCountWrap">
+        <label><b>固定行数</b></label>
+        <input id="lineCount" type="number" min="1" max="50" value="1">
+      </div>
+      <div>
+        <label><b>最低文字数</b></label>
+        <input id="minChars" type="number" min="1" max="100" value="1">
+      </div>
+    </div>
+
+    <p class="note">※1行目は曲名として扱い、抽出対象から除外します。固定行数では空行をまたぎません。最低文字数未満のブロックは除外します。</p>
+    <button id="extractBtn">問題ブロックを抽出</button>
+    <button id="clearBtn" class="secondary">クリア</button>
+    <div id="inputMsg" class="msg"></div>
+  </section>
+
+  <section id="resultCard" class="card hidden">
+    <h2>② 問題ブロックを自由に選択</h2>
+    <div class="count" id="resultSummary"></div>
+    <p class="note">下の番号をタップすると、そのブロックをいつでも編集できます。完成前でも前後の問題へ移動できます。</p>
+    <div id="blockList" class="block-list"></div>
+  </section>
+
+  <section id="editorCard" class="card hidden">
+    <div class="toolbar">
+      <h2 style="margin:0">③ 穴抜きする歌詞を選ぶ</h2>
+      <span id="currentStatus" class="status">未完成</span>
+    </div>
+    <p class="count" id="currentCount"></p>
+
+    <div id="currentBlock" class="block"></div>
+
+    <label style="display:block;margin-top:16px"><b>伏せたい歌詞</b></label>
+    <input id="phrase" placeholder="例：小さなランプ" autocomplete="off">
+    <p class="note">このブロックの中から、伏せたい文字列をそのまま入力してください。完全一致する箇所だけが候補になります。</p>
+
+    <button id="findBtn">該当箇所を確認</button>
+    <button id="resetPhraseBtn" class="secondary">リセット</button>
+    <div id="matchList" class="match-list"></div>
+    <div id="editorMsg" class="msg"></div>
+
+    <div id="outputArea" class="hidden">
+      <h3>④ 完成した問題</h3>
+      <div id="problemPreview" class="preview"></div>
+      <button id="copyProblem">問題をコピー</button>
+
+      <h3>答え</h3>
+      <div id="answerPreview" class="answer"></div>
+      <button id="copyAnswer">答えをコピー</button>
+
+      <div id="doneMsg" class="msg ok"></div>
+    </div>
+
+    <div class="sticky-nav">
+      <button id="prevBtn" class="secondary">前の問題</button>
+      <button id="nextBtn">次の問題</button>
+    </div>
+  </section>
+
+  <section id="allPreviewCard" class="card hidden">
+    <h2>問題一覧</h2>
+    <p class="note">完成済みの問題を一覧で確認できます。未完成の問題も番号から直接選択できます。</p>
+    <div id="allPreview"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+
+  const state = {
+    title: "",
+    blocks: [],
+    current: 0,
+    phrase: "",
+    matches: [],
+    selectedMatch: null,
+    completed: {}
+  };
+
+  function charCount(s) {
+    return Array.from(s).length;
+  }
+
+  function normalizeLines(text) {
+    return text.replace(/\r\n?/g, "\n");
+  }
+
+  function parseSource() {
+    const raw = normalizeLines($("source").value);
+    const lines = raw.split("\n");
+    const title = (lines.shift() || "").trim();
+    const lyrics = lines.join("\n");
+    return { title, lyrics };
+  }
+
+  function extractBlocks() {
+    const {title, lyrics} = parseSource();
+    if (!title) throw new Error("曲名（1行目）を入力してください。");
+    if (!lyrics.trim()) throw new Error("歌詞を入力してください。");
+
+    const min = Math.max(1, Number($("minChars").value) || 1);
+    const mode = $("mode").value;
+    const rawBlocks = [];
+
+    if (mode === "blank") {
+      lyrics.split(/\n\s*\n+/).forEach(part => {
+        const block = part;
+        if (block && charCount(block.replace(/\n/g,"")) >= min) rawBlocks.push(block);
+      });
+    } else {
+      const n = Math.max(1, Number($("lineCount").value) || 1);
+      const lines = lyrics.split("\n");
+      let buf = [];
+      const flush = () => {
+        if (!buf.length) return;
+        const block = buf.join("\n");
+        if (block && charCount(block.replace(/\n/g,"")) >= min) rawBlocks.push(block);
+        buf = [];
+      };
+      for (const line of lines) {
+        if (!line.trim()) {
+          flush();
+          continue;
+        }
+        buf.push(line);
+        if (buf.length === n) flush();
+      }
+      flush();
+    }
+
+    // 完全一致する重複ブロックを除去。最初に出たものだけ残す。
+    const seen = new Set();
+    const unique = [];
+    for (const b of rawBlocks) {
+      const key = b;
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(b);
+      }
+    }
+
+    state.title = title;
+    state.blocks = unique;
+    state.current = 0;
+    state.phrase = "";
+    state.matches = [];
+    state.selectedMatch = null;
+    state.completed = {};
+
+    if (!unique.length) throw new Error("条件に合う問題ブロックがありません。最低文字数などを確認してください。");
+  }
+
+  function saveLocal() {
+    try {
+      localStorage.setItem("minhayaFillblankV14", JSON.stringify({
+        title: state.title, blocks: state.blocks, current: state.current,
+        completed: state.completed
+      }));
+    } catch(e) {}
+  }
+
+  function renderBlockList() {
+    $("blockList").innerHTML = state.blocks.map((b,i) => {
+      const done = !!state.completed[i];
+      const firstLine = b.split("\n")[0];
+      return `<button class="block-btn ${i===state.current?'active':''} ${done?'done':''}" data-index="${i}">
+        <b>${i+1}. ${done?'完成':'未完成'}</b>
+        <span class="small">${escapeHtml(firstLine.slice(0,34))}${firstLine.length>34?'…':''}</span>
+      </button>`;
+    }).join("");
+
+    document.querySelectorAll(".block-btn").forEach(btn => {
+      btn.addEventListener("click", () => selectBlock(Number(btn.dataset.index)));
+    });
+
+    $("resultSummary").textContent =
+      `${state.blocks.length}個の問題ブロック（重複 ${Math.max(0, state.blocks.length === 0 ? 0 : 0)}個を除外）`;
+  }
+
+  function selectBlock(index) {
+    if (index < 0 || index >= state.blocks.length) return;
+    state.current = index;
+    state.phrase = "";
+    state.matches = [];
+    state.selectedMatch = null;
+    $("phrase").value = "";
+    $("matchList").innerHTML = "";
+    $("editorMsg").textContent = "";
+    $("outputArea").classList.add("hidden");
+    renderEditor();
+    renderBlockList();
+    renderAllPreview();
+    saveLocal();
+    window.scrollTo({top: $("editorCard").offsetTop - 12, behavior:"smooth"});
+  }
+
+  function renderEditor() {
+    const i = state.current;
+    const b = state.blocks[i];
+    const done = !!state.completed[i];
+    $("currentCount").textContent = `問題ブロック ${i+1} / ${state.blocks.length}`;
+    $("currentBlock").textContent = b;
+    $("currentStatus").textContent = done ? "完成済み" : "未完成";
+    $("currentStatus").className = "status " + (done ? "done" : "");
+
+    $("prevBtn").disabled = i === 0;
+    $("nextBtn").disabled = i === state.blocks.length - 1;
+
+    if (done) {
+      const d = state.completed[i];
+      $("phrase").value = d.phrase;
+      $("problemPreview").textContent = d.problem;
+      $("answerPreview").textContent = d.answer;
+      $("outputArea").classList.remove("hidden");
+      $("doneMsg").textContent = `${charCount(d.phrase)}文字を伏せました。`;
+    } else {
+      $("outputArea").classList.add("hidden");
+    }
+  }
+
+  function findMatches() {
+    const phrase = $("phrase").value;
+    state.phrase = phrase;
+    state.selectedMatch = null;
+    $("matchList").innerHTML = "";
+    $("editorMsg").className = "msg";
+
+    if (!phrase) {
+      $("editorMsg").textContent = "伏せたい歌詞を入力してください。";
+      $("editorMsg").classList.add("err");
+      return;
+    }
+
+    const block = state.blocks[state.current];
+    const matches = [];
+    let pos = block.indexOf(phrase);
+    while (pos !== -1) {
+      matches.push(pos);
+      pos = block.indexOf(phrase, pos + Math.max(1, phrase.length));
+    }
+    state.matches = matches;
+
+    if (!matches.length) {
+      $("editorMsg").textContent = "この問題ブロックには、その文字列が見つかりません。歌詞をそのまま入力してください。";
+      $("editorMsg").classList.add("err");
+      return;
+    }
+
+    if (matches.length === 1) {
+      state.selectedMatch = 0;
+      renderMatchList();
+      buildOutput();
+    } else {
+      renderMatchList();
+      $("editorMsg").textContent = `${matches.length}箇所見つかりました。穴抜きしたい箇所を選んでください。`;
+      $("editorMsg").classList.add("ok");
+    }
+  }
+
+  function contextAt(block, pos, phrase) {
+    const start = Math.max(0, pos - 18);
+    const end = Math.min(block.length, pos + phrase.length + 18);
+    let s = block.slice(start,end).replace(/\n/g," ");
+    const target = phrase;
+    return (start > 0 ? "…":"") + s + (end < block.length ? "…":"");
+  }
+
+  function renderMatchList() {
+    $("matchList").innerHTML = state.matches.map((pos,idx) => {
+      const selected = state.selectedMatch === idx;
+      return `<button class="match-btn ${selected?'selected':''}" data-match="${idx}">
+        候補 ${idx+1}：${escapeHtml(contextAt(state.blocks[state.current], pos, state.phrase))}
+      </button>`;
+    }).join("");
+
+    document.querySelectorAll(".match-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        state.selectedMatch = Number(btn.dataset.match);
+        renderMatchList();
+        buildOutput();
+      });
+    });
+  }
+
+  function buildOutput() {
+    if (state.selectedMatch === null) return;
+    const phrase = state.phrase;
+    const block = state.blocks[state.current];
+    const pos = state.matches[state.selectedMatch];
+    const circles = "〇".repeat(charCount(phrase));
+    const problem = block.slice(0,pos) + circles + block.slice(pos + phrase.length);
+    const answer = `${phrase}（${state.title}）`;
+
+    state.completed[state.current] = {phrase, problem, answer, position:pos};
+    $("problemPreview").textContent = problem;
+    $("answerPreview").textContent = answer;
+    $("outputArea").classList.remove("hidden");
+    $("doneMsg").textContent = `${charCount(phrase)}文字を伏せました。`;
+    $("currentStatus").textContent = "完成済み";
+    $("currentStatus").className = "status done";
+    $("editorMsg").textContent = "穴抜き箇所を確定しました。";
+    $("editorMsg").className = "msg ok";
+
+    renderBlockList();
+    renderAllPreview();
+    saveLocal();
+  }
+
+  function renderAllPreview() {
+    if (!state.blocks.length) return;
+    const html = state.blocks.map((b,i) => {
+      const d = state.completed[i];
+      return `<div style="border:1px solid #d8dde5;border-radius:10px;padding:12px;margin:8px 0;background:#fff">
+        <div class="toolbar">
+          <b>${i+1}. ${d?'完成':'未完成'}</b>
+          <button data-jump="${i}" style="margin:0;padding:6px 10px">この問題を編集</button>
+        </div>
+        <div class="note" style="margin-top:7px">${escapeHtml((d?d.problem:b).slice(0,180))}${(d?d.problem:b).length>180?'…':''}</div>
+      </div>`;
+    }).join("");
+    $("allPreview").innerHTML = html;
+    $("allPreviewCard").classList.remove("hidden");
+    document.querySelectorAll("[data-jump]").forEach(btn => {
+      btn.addEventListener("click", () => selectBlock(Number(btn.dataset.jump)));
+    });
+  }
+
+  async function copyText(text, button) {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = text; document.body.appendChild(ta);
+        ta.select(); document.execCommand("copy"); ta.remove();
+      }
+      const old = button.textContent;
+      button.textContent = "コピーしました！";
+      setTimeout(() => button.textContent = old, 1200);
+    } catch(e) {
+      alert("コピーできませんでした。表示された文字を長押ししてコピーしてください。");
+    }
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  $("mode").addEventListener("change", () => {
+    $("lineCountWrap").classList.toggle("hidden", $("mode").value !== "fixed");
+  });
+
+  $("extractBtn").addEventListener("click", () => {
+    $("inputMsg").textContent = "";
+    try {
+      extractBlocks();
+      $("resultCard").classList.remove("hidden");
+      $("editorCard").classList.remove("hidden");
+      $("inputMsg").textContent = `抽出しました。重複する完全一致ブロックは除外しています。`;
+      $("inputMsg").className = "msg ok";
+      renderBlockList();
+      renderEditor();
+      renderAllPreview();
+      saveLocal();
+      setTimeout(() => window.scrollTo({top:$("resultCard").offsetTop-12,behavior:"smooth"}),50);
+    } catch(e) {
+      $("inputMsg").textContent = e.message;
+      $("inputMsg").className = "msg err";
+    }
+  });
+
+  $("clearBtn").addEventListener("click", () => {
+    if (!confirm("入力内容と作成中の問題をすべて消しますか？")) return;
+    $("source").value = "";
+    $("phrase").value = "";
+    state.title = ""; state.blocks = []; state.current = 0; state.completed = {};
+    $("resultCard").classList.add("hidden");
+    $("editorCard").classList.add("hidden");
+    $("allPreviewCard").classList.add("hidden");
+    $("inputMsg").textContent = "";
+    localStorage.removeItem("minhayaFillblankV14");
+    window.scrollTo({top:0,behavior:"smooth"});
+  });
+
+  $("findBtn").addEventListener("click", findMatches);
+
+  $("resetPhraseBtn").addEventListener("click", () => {
+    $("phrase").value = "";
+    state.phrase = ""; state.matches = []; state.selectedMatch = null;
+    $("matchList").innerHTML = "";
+    $("editorMsg").textContent = "";
+    $("outputArea").classList.add("hidden");
+    if (state.completed[state.current]) {
+      delete state.completed[state.current];
+      renderBlockList(); renderAllPreview(); renderEditor(); saveLocal();
+    }
+  });
+
+  $("prevBtn").addEventListener("click", () => selectBlock(state.current - 1));
+  $("nextBtn").addEventListener("click", () => selectBlock(state.current + 1));
+
+  $("copyProblem").addEventListener("click", () => {
+    const d = state.completed[state.current];
+    if (d) copyText(d.problem, $("copyProblem"));
+  });
+  $("copyAnswer").addEventListener("click", () => {
+    const d = state.completed[state.current];
+    if (d) copyText(d.answer, $("copyAnswer"));
+  });
+
+  // Enterキーでも検索できるようにする
+  $("phrase").addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); findMatches(); }
+  });
+
+})();
+</script>
+</body>
+</html>
